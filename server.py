@@ -1,6 +1,9 @@
 # Include Python's Socket Library
 from socket import *
 
+import pickle
+
+import struct
 # Specify Server Port
 serverPort = 12000
 
@@ -24,53 +27,6 @@ serverSocket = socket(AF_INET, SOCK_DGRAM)
 # until an unacknowledged packet currently in the pipeline (specifically, the
 # packet with sequence number base) has been acknowledged.
 
-# From: https://github.com/houluy/UDP/blob/master/udp.py
-VERSION_OFF     = 0
-IHL_OFF         = VERSION_OFF
-DSCP_OFF        = IHL_OFF + 1
-ECN_OFF         = DSCP_OFF
-LENGTH_OFF      = DSCP_OFF + 1
-ID_OFF          = LENGTH_OFF + 2
-FLAGS_OFF       = ID_OFF + 2
-OFF_OFF         = FLAGS_OFF
-TTL_OFF         = OFF_OFF + 2
-PROTOCOL_OFF    = TTL_OFF + 1
-IP_CHECKSUM_OFF = PROTOCOL_OFF + 1
-SRC_IP_OFF      = IP_CHECKSUM_OFF + 2
-DEST_IP_OFF     = SRC_IP_OFF + 4
-SRC_PORT_OFF    = DEST_IP_OFF + 4
-DEST_PORT_OFF   = SRC_PORT_OFF + 2
-UDP_LEN_OFF     = DEST_PORT_OFF + 2
-UDP_CHECKSUM_OFF= UDP_LEN_OFF + 2
-DATA_OFF        = UDP_CHECKSUM_OFF + 2
-
-IP_PACKET_OFF   = VERSION_OFF
-UDP_PACKET_OFF  = SRC_PORT_OFF
-
-def parse(data):
-    packet = {}
-#     packet['version']       = data[VERSION_OFF] >> 4
-#     packet['IHL']           = data[IHL_OFF] & 0x0F
-#     packet['DSCP']          = data[DSCP_OFF] >> 2
-#     packet['ECN']           = data[ECN_OFF] & 0x03
-#     packet['length']        = (data[LENGTH_OFF] << 8) + data[LENGTH_OFF + 1]
-#     packet['Identification']= (data[ID_OFF] << 8) + data[ID_OFF + 1]
-#     packet['Flags']         = data[FLAGS_OFF] >> 5
-#     packet['Offset']        = ((data[OFF_OFF] & 0b11111) << 8) + data[OFF_OFF + 1]
-#     packet['TTL']           = data[TTL_OFF]
-#     packet['Protocol']      = data[PROTOCOL_OFF]
-# Only need these
-    packet['Checksum']      = (data[IP_CHECKSUM_OFF] << 8) + data[IP_CHECKSUM_OFF + 1]
-    packet['src_ip']        = '.'.join(map(str, [data[x] for x in range(SRC_IP_OFF, SRC_IP_OFF + 4)]))
-    packet['dest_ip']       = '.'.join(map(str, [data[x] for x in range(DEST_IP_OFF, DEST_IP_OFF + 4)]))
-    packet['src_port']      = (data[SRC_PORT_OFF] << 8) + data[SRC_PORT_OFF + 1]
-    packet['dest_port']     = (data[DEST_PORT_OFF] << 8) + data[DEST_PORT_OFF + 1]
-    packet['udp_length']    = (data[UDP_LEN_OFF] << 8) + data[UDP_LEN_OFF + 1]
-    packet['UDP_checksum']  = (data[UDP_CHECKSUM_OFF] << 8) + data[UDP_CHECKSUM_OFF + 1]
-    packet['data']          = ''.join(map(chr, [data[DATA_OFF + x] for x in range(0, packet['udp_length'] - 8)]))
-
-    return packet
-
 class Packet:
      def __init__(self, checksum, seqnum, data):
           self.check_sum = checksum
@@ -79,26 +35,47 @@ class Packet:
 
 class GoBackNReceiver:
      expectedseqnum = 1
-     send_pkt = Packet()
 
      def A(self):
           self.expectedseqnum = 1
-          self.send_pkt = Packet(seqnum=0,data='ACK',checksum=)
+          self.send_pkt = Packet(seqnum=0,data='ACK',checksum=self.checksum())
 
      def not_corrupt(self, rev_pkt):
-          return (parse(rev_pkt)['UDP_checksum'] % 16) == 0 
+          return (self.checksum(rev_pkt) % 16) == 0 
           # Returns 1 if divisible by 16, 0 otherwise 
 
      def rdt_rcv(self,rcv_pkt, clientAddress):
           if not self.not_corrupt(rcv_pkt):
-               # State machine says extract & deliver?
-               check_sum = parse(rcv_pkt)['UDP_checksum']
+               check_sum = self.checksum(rcv_pkt)
                sndpkt = Packet(checksum=check_sum, seqnum=self.expectedseqnum, data='ACK')
                self.udt_send(sndpkt, clientAddress)
                self.expectedseqnum = self.expectedseqnum + 1
 
      def udt_send(self, sndpkt, clientAddress):
-          serverSocket.sendto(sndpkt.encode(), clientAddress)
+          serverSocket.sendto(pickle.dumps(sndpkt), clientAddress)
+
+     def checksum(self, packet):
+          # Step 1: Initialize the checksum sum to 0
+          checksum = 0
+
+          # Step 2: Add the packet data in 16-bit chunks (2 bytes each)
+          # Iterate over the packet in chunks of 2 bytes
+          for i in range(0, len(packet), 2):
+               # If there's an odd byte at the end, we pad with 0
+               if i + 1 < len(packet):
+                    # Unpack 2 bytes into an unsigned short (16-bit)
+                    word = struct.unpack("!H", packet[i:i+2])[0]
+               else:
+                    # Last byte (odd length), pad with 0 at the second byte
+                    word = struct.unpack("!H", packet[i:i+1] + b'\x00')[0]
+               
+               checksum += word
+               # Add carry over from 16-bit sum
+               checksum = (checksum & 0xFFFF) + (checksum >> 16)
+
+          # Step 3: One's complement the sum and return it
+          checksum = ~checksum & 0xFFFF
+          return checksum
 
 # Bind the server port to the socket
 serverSocket.bind(('',serverPort))
@@ -112,10 +89,4 @@ while True: # Forever Loop
     message, clientAddress = serverSocket.recvfrom(2048)
     
     Receiver.rdt_rcv(message, clientAddress)
-
-    send_packet = Packet(checksum=parse(message)['UDP_checksum'], 
-                         seqnum=Receiver.nextseqnum, 
-                         data='ACK')
-
-    Receiver.udt_send(send_packet, clientAddress)
 
