@@ -18,8 +18,7 @@ serverAddress=(serverName, serverPort)
 clientSocket = socket(AF_INET, SOCK_DGRAM)
 
 class Packet:
-     def __init__(self, checksum, seqnum, data):
-          self.check_sum = checksum
+     def __init__(self, seqnum, data):
           self.seq_num = seqnum
           self.data = data
 
@@ -125,16 +124,20 @@ class GoBackNSender:
 Sender = GoBackNSender()
 
 # Create packets
-message = 'HELLO'
+Packet1 = Packet(1, 'Packet1')
+Packet2 = Packet(2, 'Packet2')
+Packet3 = Packet(3, 'Packet3')
 
 # Message sent to the Server
-Sender.rdt_send(message, clientSocket, serverAddress)
+Sender.rdt_send(Packet1, clientSocket, serverAddress)
+Sender.rdt_send(Packet2, clientSocket, serverAddress)
+Sender.rdt_send(Packet3, clientSocket, serverAddress)
 
 # Read reply characters from socket into string
-modifiedMessage, serverAddress = clientSocket.recvfrom(2048)
+while(True):  
+     modifiedMessage, serverAddress = clientSocket.recvfrom(2048)
 
-# Print received string
-print('Modified message: ' +str(pickle.loads(modifiedMessage)))
+     # Print received string
+     print('Modified message: ' +str(pickle.loads(modifiedMessage)))
 
-# Close the client socket
-clientSocket.close()
+     time.sleep(1)

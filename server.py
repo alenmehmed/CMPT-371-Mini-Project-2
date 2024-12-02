@@ -28,8 +28,7 @@ serverSocket = socket(AF_INET, SOCK_DGRAM)
 # packet with sequence number base) has been acknowledged.
 
 class Packet:
-     def __init__(self, checksum, seqnum, data):
-          self.check_sum = checksum
+     def __init__(self, seqnum, data):
           self.seq_num = seqnum
           self.data = data
 
@@ -38,7 +37,7 @@ class GoBackNReceiver:
 
      def A(self):
           self.expectedseqnum = 1
-          self.send_pkt = Packet(seqnum=0,data='ACK',checksum=self.checksum())
+          self.send_pkt = Packet(seqnum=0,data='ACK')
 
      def not_corrupt(self, rev_pkt):
           return (self.checksum(rev_pkt) % 16) == 0 
@@ -47,7 +46,7 @@ class GoBackNReceiver:
      def rdt_rcv(self,rcv_pkt, clientAddress):
           if not self.not_corrupt(rcv_pkt):
                check_sum = self.checksum(rcv_pkt)
-               sndpkt = Packet(checksum=check_sum, seqnum=self.expectedseqnum, data='ACK')
+               sndpkt = Packet(seqnum=self.expectedseqnum, data='ACK')
                self.udt_send(sndpkt, clientAddress)
                self.expectedseqnum = self.expectedseqnum + 1
 
