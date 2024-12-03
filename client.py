@@ -44,6 +44,15 @@ class GoBackNSender:
           return Packet(self.nextseqnum, str)
 
      def rdt_send(self, send_pkt, clientSocket, serverAddress):
+          try:
+               clientSocket.settimeout(0.005)
+               msg, _ = clientSocket.recvfrom(2048)
+               if(pickle.loads(msg).seq_num > self.base):
+                    self.base = pickle.loads(msg).seq_num
+          except:
+               pass
+          clientSocket.settimeout(None)
+
           if(self.timedout()):
                self.timeout(serverAddress)
           else:
@@ -61,10 +70,11 @@ class GoBackNSender:
                     while not self.timedout() and self.timer_running():
                          time.sleep(1)
 
-                    print(self.nextseqnum, self.base)
-                    if self.timedout() and not self.nextseqnum == self.base:
+                    print("rdt_send next_seqnum: " + str(self.nextseqnum) + ", base: " + str(self.base))
+                    if self.timedout():# and not self.nextseqnum == self.base:
                          print("timed out")
                          self.timeout(serverAddress)
+
 
 
      def rdt_rev(self,rev_pkt):
@@ -87,22 +97,25 @@ class GoBackNSender:
           # send packets from base to nextseqnum - 1
           msg = None
           try:
-               for i in range(self.base - 1, self.nextseqnum - 1):
+               for i in range(self.base, self.nextseqnum - 1):
                     print("resending packet " + str(i))
                     self.udt_send(clientSocket, serverAddress, i)
                     clientSocket.settimeout(3)
                     try:
                          msg, _ = clientSocket.recvfrom(2048)
+                         print("base: " + str(self.base) + ", received ack: " + str(pickle.loads(msg).seq_num))
+                         self.base = pickle.loads(msg).seq_num
+                         print("setting base to " + str(self.base))
                     except:
-                         pass
-                    print(str(self.base) + " " + str(pickle.loads(msg).seq_num))
-                    if(self.base == pickle.loads(msg).seq_num):
+                         print("msg failed to receive in client")
                          raise Err("")
-                    self.base = pickle.loads(msg).seq_num
-                    print("setting base to " + str(self.base))
+                    # if(self.base != pickle.loads(msg).seq_num):
+                    #      raise Err("")
           except Err:
+               pass
+          if self.base != self.nextseqnum:
+               print("BASE NOT EQUAL TO NEXTSEQNUM")
                timeout(self, serverAddress)
-
           clientSocket.settimeout(None)
 
      def start_timer(self):
@@ -161,7 +174,7 @@ Sender = GoBackNSender()
 
 seq = 1
 while seq <= 32:
-     packet = Sender.make_packet('Packet ' + str(seq))
+     packet = Sender.make_packet('Packet ' + str(seq-1))
      seq += 1
      Sender.rdt_send(packet, clientSocket, serverAddress)
 
