@@ -47,7 +47,7 @@ class GoBackNSender:
           if(self.timedout()):
                self.timeout(serverAddress)
           else:
-               print(self.nextseqnum)
+               # print(self.nextseqnum)
                if(self.nextseqnum < self.base + self.N):
                     # Get packet (with checksum, data, and nextseqnum) and send over
                     self.sndpkt.append(send_pkt)
@@ -86,20 +86,18 @@ class GoBackNSender:
           self.start_timer()
           # send packets from base to nextseqnum - 1
           msg = None
-          last_recv = 0
           try:
                for i in range(self.base - 1, self.nextseqnum - 1):
-                    self.udt_send(clientSocket, serverAddress, i - 1)
+                    print("resending packet " + str(i))
+                    self.udt_send(clientSocket, serverAddress, i)
                     clientSocket.settimeout(3)
                     try:
-                         msg, clientAddr = clientSocket.recvfrom(2048)
+                         msg, _ = clientSocket.recvfrom(2048)
                     except:
                          pass
-                    if(last_recv == pickle.loads(msg).seq_num):
+                    print(str(self.base) + " " + str(pickle.loads(msg).seq_num))
+                    if(self.base == pickle.loads(msg).seq_num):
                          raise Err("")
-                    last_recv = pickle.loads(msg).seq_num
-
-               if msg is not None:
                     self.base = pickle.loads(msg).seq_num
                     print("setting base to " + str(self.base))
           except Err:

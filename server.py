@@ -45,6 +45,11 @@ class GoBackNReceiver:
           # Returns 1 if divisible by 16, 0 otherwise 
 
      def rdt_rcv(self,rcv_pkt, clientAddress):
+          if pickle.loads(rcv_pkt).seq_num < self.expectedseqnum:
+               print("Received duplicate packet with seqnum " + str(pickle.loads(rcv_pkt).seq_num))
+               sndpkt = Packet(seqnum=pickle.loads(rcv_pkt).seq_num, data='ACK')
+               self.udt_send(sndpkt, clientAddress)
+               return
           if not self.not_corrupt(rcv_pkt):
                if random.random() > GoBackNReceiver.failure_rate and pickle.loads(rcv_pkt).seq_num == self.expectedseqnum: # fail out randomly to simulate dropping
                     check_sum = self.checksum(rcv_pkt)
