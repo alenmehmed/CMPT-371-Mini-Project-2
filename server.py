@@ -1,9 +1,9 @@
 # Include Python's Socket Library
+import pickle
+import random
+import struct
 from socket import *
 
-import pickle
-
-import struct
 # Specify Server Port
 serverPort = 12000
 
@@ -33,6 +33,7 @@ class Packet:
           self.data = data
 
 class GoBackNReceiver:
+     failure_rate = 0.10
      expectedseqnum = 1
 
      def A(self):
@@ -45,10 +46,15 @@ class GoBackNReceiver:
 
      def rdt_rcv(self,rcv_pkt, clientAddress):
           if not self.not_corrupt(rcv_pkt):
-               check_sum = self.checksum(rcv_pkt)
-               sndpkt = Packet(seqnum=self.expectedseqnum, data='ACK')
-               self.udt_send(sndpkt, clientAddress)
-               self.expectedseqnum = self.expectedseqnum + 1
+               if random.random() > GoBackNReceiver.failure_rate and pickle.loads(rcv_pkt).seq_num == self.expectedseqnum: # fail out randomly to simulate dropping
+                    check_sum = self.checksum(rcv_pkt)
+                    sndpkt = Packet(seqnum=self.expectedseqnum, data='ACK')
+                    self.udt_send(sndpkt, clientAddress)
+                    self.expectedseqnum = self.expectedseqnum + 1
+                    print(str(pickle.loads(rcv_pkt).data))
+                    print('seqnum: ' + str(pickle.loads(rcv_pkt).seq_num))
+               else:
+                    print("Packet " + str(pickle.loads(rcv_pkt).seq_num) + " corrupted!")
 
      def udt_send(self, sndpkt, clientAddress):
           serverSocket.sendto(pickle.dumps(sndpkt), clientAddress)

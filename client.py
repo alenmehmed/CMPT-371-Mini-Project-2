@@ -1,12 +1,10 @@
 # Include Python's Socket Library
-from socket import *
+import pickle
+import struct
 
 # Timer library
 import time
-
-import struct
-
-import pickle
+from socket import *
 
 # Define Server IP Address and Port
 serverName = 'localhost'
@@ -41,6 +39,7 @@ class GoBackNSender:
           self.nextseqnum = 1
 
      def rdt_send(self, send_pkt, clientSocket, serverAddress):
+          if(self.check_timer())
           if(self.nextseqnum < self.base + self.N):
                # Get packet (with checksum, data, and nextseqnum) and send over
                self.sndpkt.append(send_pkt)
@@ -123,21 +122,28 @@ class GoBackNSender:
 # Create GoBackN Sender
 Sender = GoBackNSender()
 
-# Create packets
-Packet1 = Packet(1, 'Packet1')
-Packet2 = Packet(2, 'Packet2')
-Packet3 = Packet(3, 'Packet3')
+seq = 1
+while seq <= 32:
+     packet = Packet(seq, 'Packet ' + str(seq))
+     seq += 1
+     Sender.rdt_send(packet, clientSocket, serverAddress)
 
-# Message sent to the Server
-Sender.rdt_send(Packet1, clientSocket, serverAddress)
-Sender.rdt_send(Packet2, clientSocket, serverAddress)
-Sender.rdt_send(Packet3, clientSocket, serverAddress)
+# # Create packets
+# Packet1 = Packet(1, 'Packet1')
+# Packet2 = Packet(2, 'Packet2')
+# Packet3 = Packet(3, 'Packet3')
+
+# # Message sent to the Server
+# Sender.rdt_send(Packet1, clientSocket, serverAddress)
+# Sender.rdt_send(Packet2, clientSocket, serverAddress)
+# Sender.rdt_send(Packet3, clientSocket, serverAddress)
 
 # Read reply characters from socket into string
 while(True):  
      modifiedMessage, serverAddress = clientSocket.recvfrom(2048)
 
      # Print received string
-     print('Modified message: ' +str(pickle.loads(modifiedMessage)))
+     print('Modified message: ' +str(pickle.loads(modifiedMessage).data))
+     print('seqnum: ' + str(pickle.loads(modifiedMessage).seq_num))
 
      time.sleep(1)
