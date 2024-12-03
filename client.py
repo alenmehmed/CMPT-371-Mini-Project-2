@@ -19,6 +19,9 @@ class Packet:
      def __init__(self, seqnum, data):
           self.seq_num = seqnum
           self.data = data
+          
+class Err(Exception):
+     pass
 
 class GoBackNSender:
      timer = 0.0
@@ -60,6 +63,7 @@ class GoBackNSender:
 
                     print(self.nextseqnum, self.base)
                     if self.timedout() and not self.nextseqnum == self.base:
+                         print("timed out")
                          self.timeout(serverAddress)
 
 
@@ -77,12 +81,31 @@ class GoBackNSender:
           return (self.checksum(rev_pkt) % 16) == 0 
           # Returns 1 if divisible by 16, 0 otherwise 
 
+
      def timeout(self, serverAddress):
           self.start_timer()
           # send packets from base to nextseqnum - 1
-          for i in range(self.base, self.nextseqnum):
-               self.udt_send(clientSocket, serverAddress, i - 1)
-          self.base = self.nextseqnum
+          msg = None
+          last_recv = 0
+          try:
+               for i in range(self.base - 1, self.nextseqnum - 1):
+                    self.udt_send(clientSocket, serverAddress, i - 1)
+                    clientSocket.settimeout(3)
+                    try:
+                         msg, clientAddr = clientSocket.recvfrom(2048)
+                    except:
+                         pass
+                    if(last_recv == pickle.loads(msg).seq_num):
+                         raise Err("")
+                    last_recv = pickle.loads(msg).seq_num
+
+               if msg is not None:
+                    self.base = pickle.loads(msg).seq_num
+                    print("setting base to " + str(self.base))
+          except Err:
+               timeout(self, serverAddress)
+
+          clientSocket.settimeout(None)
 
      def start_timer(self):
           self.timer = 0.0
