@@ -24,8 +24,7 @@ class GoBackNSender:
      timer = 0.0
      start = 0.0
      end = 0.0
-     timeout_time = 60.0 # Call timeout like 60 seconds
-
+     timeout_time = 5 # Call timeout like 60 seconds
      sndpkt = []
 
      # N is max number of unacknoweldged packets in pipeline (Window size)
@@ -38,20 +37,31 @@ class GoBackNSender:
           self.base = 1
           self.nextseqnum = 1
 
+     def make_packet(self, str):
+          return Packet(self.nextseqnum, str)
+
      def rdt_send(self, send_pkt, clientSocket, serverAddress):
-          if(self.timedout(self)):
+          if(self.timedout()):
                self.timeout(serverAddress)
           else:
+               print(self.nextseqnum)
                if(self.nextseqnum < self.base + self.N):
                     # Get packet (with checksum, data, and nextseqnum) and send over
                     self.sndpkt.append(send_pkt)
                     self.udt_send(clientSocket, serverAddress, self.nextseqnum - 1)
                     if(self.base == self.nextseqnum):
                          self.start_timer()
-                    self.nextseqnum = self.nextseqnum + 1
+                    self.nextseqnum += 1
                else:
                     # Window is full, don't send data
-                    pass
+                    print("window full")
+                    while not self.timedout() and self.timer_running():
+                         time.sleep(1)
+
+                    print(self.nextseqnum, self.base)
+                    if self.timedout() and not self.nextseqnum == self.base:
+                         self.timeout(serverAddress)
+
 
      def rdt_rev(self,rev_pkt):
           if not self.not_corrupt(rev_pkt):
@@ -71,7 +81,8 @@ class GoBackNSender:
           self.start_timer()
           # send packets from base to nextseqnum - 1
           for i in range(self.base, self.nextseqnum):
-               self.udt_send(clientSocket, serverAddress, i)
+               self.udt_send(clientSocket, serverAddress, i - 1)
+          self.base = self.nextseqnum
 
      def start_timer(self):
           self.timer = 0.0
@@ -94,7 +105,10 @@ class GoBackNSender:
                return True
           else:
                return False
-
+          
+     def timer_running(self):
+          return self.start != self.end
+          
      def udt_send(self, clientSocket, serverAddress, seqnum):
           clientSocket.sendto(pickle.dumps(self.sndpkt[seqnum]), serverAddress)
 
@@ -126,7 +140,7 @@ Sender = GoBackNSender()
 
 seq = 1
 while seq <= 32:
-     packet = Packet(seq, 'Packet ' + str(seq))
+     packet = Sender.make_packet('Packet ' + str(seq))
      seq += 1
      Sender.rdt_send(packet, clientSocket, serverAddress)
 
