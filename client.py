@@ -39,17 +39,19 @@ class GoBackNSender:
           self.nextseqnum = 1
 
      def rdt_send(self, send_pkt, clientSocket, serverAddress):
-          if(self.check_timer())
-          if(self.nextseqnum < self.base + self.N):
-               # Get packet (with checksum, data, and nextseqnum) and send over
-               self.sndpkt.append(send_pkt)
-               self.udt_send(clientSocket, serverAddress, self.nextseqnum - 1)
-               if(self.base == self.nextseqnum):
-                    self.start_timer()
-               self.nextseqnum = self.nextseqnum + 1
+          if(self.timedout(self)):
+               self.timeout(serverAddress)
           else:
-               # Window is full, don't send data
-               pass
+               if(self.nextseqnum < self.base + self.N):
+                    # Get packet (with checksum, data, and nextseqnum) and send over
+                    self.sndpkt.append(send_pkt)
+                    self.udt_send(clientSocket, serverAddress, self.nextseqnum - 1)
+                    if(self.base == self.nextseqnum):
+                         self.start_timer()
+                    self.nextseqnum = self.nextseqnum + 1
+               else:
+                    # Window is full, don't send data
+                    pass
 
      def rdt_rev(self,rev_pkt):
           if not self.not_corrupt(rev_pkt):
@@ -82,16 +84,16 @@ class GoBackNSender:
           self.start = 0.0
           self.end = 0.0
      
-     def check_timer(self, serverAddress):
+     def timedout(self):
           # Update timer
           now = time.time()
           self.timer = self.timer + (now - self.start)
           self.start = time.time()
           # Now check timer
           if(self.timer > self.timeout_time):
-               self.timeout(serverAddress)
+               return True
           else:
-               pass
+               return False
 
      def udt_send(self, clientSocket, serverAddress, seqnum):
           clientSocket.sendto(pickle.dumps(self.sndpkt[seqnum]), serverAddress)
